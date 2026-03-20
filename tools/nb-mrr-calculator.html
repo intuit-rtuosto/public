@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NB MRR Pacing Calculator</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+  // Fallback if CDN fails (e.g. file:// protocol)
+  if (typeof Chart === 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('canvas').forEach(c => {
+        const p = document.createElement('p');
+        p.style.cssText = 'color:#94a3b8;font-size:.85rem;text-align:center;padding:40px 0;';
+        p.textContent = 'Charts require an HTTP server. Run: python3 -m http.server';
+        c.parentNode.replaceChild(p, c);
+      });
+    });
+  }
+</script>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --card: #ffffff;
+    --border: #e1e4e8;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --accent: #4f46e5;
+    --traffic: #3b82f6;
+    --web: #f59e0b;
+    --growth: #10b981;
+    --baseline: #94a3b8;
+    --baseline-light: #cbd5e1;
+    --low: #6366f1;
+    --low-light: #a5b4fc;
+    --high: #ec4899;
+    --high-light: #f9a8d4;
+    --positive: #059669;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5; padding: 24px;
+  }
+  h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+  h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 12px; }
+  h3 { font-size: .95rem; font-weight: 600; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+  .subtitle { color: var(--text-muted); font-size: .9rem; margin-bottom: 20px; }
+
+  .page-head { max-width: 1480px; margin: 0 auto; }
+  .dashboard { display: grid; grid-template-columns: 320px 1fr; gap: 24px; max-width: 1480px; margin: 0 auto; }
+  .sidebar { display: flex; flex-direction: column; gap: 16px; }
+  .main { display: flex; flex-direction: column; gap: 24px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow); }
+
+  .input-group { margin-bottom: 14px; }
+  .input-group:last-child { margin-bottom: 0; }
+  .input-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .input-row label { font-size: .82rem; color: var(--text-muted); min-width: 120px; flex-shrink: 0; }
+  .input-row input {
+    width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: .85rem; color: var(--text); background: #fafbfc; transition: border-color .15s;
+  }
+  .input-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,70,229,.15); }
+  .input-row .unit { font-size: .78rem; color: var(--text-muted); flex-shrink: 0; min-width: 20px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+  /* Metric toggle */
+  .metric-toggle { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; margin-bottom: 16px; }
+  .metric-toggle button {
+    flex: 1; padding: 8px 12px; border: none; border-radius: 6px; font-size: .85rem; font-weight: 500;
+    cursor: pointer; background: transparent; color: var(--text-muted); transition: all .2s;
+  }
+  .metric-toggle button.active { background: var(--card); color: var(--accent); box-shadow: var(--shadow); font-weight: 600; }
+
+  /* Summary table */
+  .summary-table th { white-space: nowrap; }
+  .summary-table td { white-space: nowrap; }
+  .summary-table .delta-cell { font-size: .78rem; color: var(--positive); font-weight: 500; }
+  .summary-table .row-label { font-weight: 600; min-width: 130px; }
+  .summary-table .col-group { border-left: 2px solid var(--border); }
+  .summary-table thead th.col-group { border-left: 2px solid var(--border); }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+  th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border); font-weight: 600; color: var(--text-muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+  th.right, td.right { text-align: right; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f0f1f3; }
+  tr:last-child td { border-bottom: none; }
+  tr.total-row td { font-weight: 700; border-top: 2px solid var(--border); padding-top: 10px; }
+  .ws-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .ws-dot.traffic { background: var(--traffic); }
+  .ws-dot.web { background: var(--web); }
+  .ws-dot.growth { background: var(--growth); }
+
+  .chart-container { position: relative; width: 100%; height: 340px; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .chart-col { min-width: 0; }
+
+  /* Compare cards */
+  .compare-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .compare-card { border-radius: 10px; padding: 16px; border: 2px solid; }
+  .compare-card.low-card { border-color: var(--low); background: #eef2ff; }
+  .compare-card.high-card { border-color: var(--high); background: #fdf2f8; }
+  .compare-card h3 { margin-bottom: 12px; }
+  .compare-card .stat { display: flex; justify-content: space-between; padding: 5px 0; font-size: .85rem; }
+  .compare-card .stat .val { font-weight: 600; }
+
+  /* Funnel summary */
+  .funnel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* Legend dots */
+  .legend-inline { display: flex; gap: 16px; margin-bottom: 12px; font-size: .82rem; color: var(--text-muted); }
+  .legend-inline span { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* Workstream allocation slider */
+  .alloc-slider {
+    position: relative; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer;
+    margin: 12px 0 8px; user-select: none; touch-action: none;
+  }
+  .alloc-slider .seg {
+    position: absolute; top: 0; height: 100%; display: flex; align-items: center; justify-content: center;
+    font-size: .7rem; font-weight: 600; color: #fff; transition: width 50ms;
+  }
+  .alloc-slider .seg.traffic { background: var(--traffic); left: 0; border-radius: 6px 0 0 6px; }
+  .alloc-slider .seg.growth { background: var(--growth); }
+  .alloc-slider .seg.web { background: var(--web); right: 0; border-radius: 0 6px 6px 0; }
+  .alloc-slider .thumb {
+    position: absolute; top: -2px; width: 6px; height: 32px; background: #fff;
+    border: 2px solid var(--text); border-radius: 3px; cursor: ew-resize; z-index: 2;
+    transform: translateX(-50%); box-shadow: 0 1px 4px rgba(0,0,0,.25);
+  }
+  .alloc-labels { display: flex; justify-content: space-between; font-size: .75rem; color: var(--text-muted); margin-bottom: 4px; white-space: nowrap; }
+  .alloc-labels span { display: flex; align-items: center; gap: 2px; }
+  .alloc-labels strong { display: inline-block; min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 1060px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .chart-row, .compare-row, .funnel-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>NB MRR Pacing Calculator</h1>
+  <p class="subtitle">Fiscal year pacing (Aug-Jul): baseline monthly performance + incremental lift accumulating each month toward annual targets. <a href="../tutorials/nb-mrr-tutorial.html" style="color:var(--accent);text-decoration:none;font-weight:500;">How does this work? &rarr;</a></p>
+</header>
+
+<div class="dashboard">
+  <!-- ===== SIDEBAR ===== -->
+  <div class="sidebar">
+    <div class="card">
+      <h3>Funnel Inputs</h3>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:10px;">Traffic is weekly; converted to monthly (&times; 52/12) for all calculations.</p>
+      <div class="input-group">
+        <div class="input-row">
+          <label>Weekly Traffic</label>
+          <input type="text" id="in-traffic" value="1,500,000">
+        </div>
+        <div class="input-row">
+          <label>Traffic &rarr; Activation</label>
+          <input type="text" id="in-t2a" value="2.5">
+          <span class="unit">%</span>
+        </div>
+        <div class="input-row">
+          <label>T2A Confidence</label>
+          <input type="text" id="in-t2a-conf" value="85">
+          <span class="unit">%</span>
+        </div>
+        <div class="input-row">
+          <label>Activation &rarr; Booking</label>
+          <input type="text" id="in-a2b" value="18">
+          <span class="unit">%</span>
+        </div>
+        <div class="input-row">
+          <label>A2B Confidence</label>
+          <input type="text" id="in-a2b-conf" value="85">
+          <span class="unit">%</span>
+        </div>
+        <div class="input-row">
+          <label>AOV</label>
+          <span class="unit">$</span>
+          <input type="text" id="in-aov" value="43">
+        </div>
+        <div class="input-row">
+          <label>AOV Confidence</label>
+          <input type="text" id="in-aov-conf" value="100">
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>FY27 Scenario Changes</h3>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:8px;">Scenario % targets:</p>
+      <div class="metric-toggle" id="scenario-mode-toggle" style="margin-bottom:12px;">
+        <button class="active" data-mode="inyear">In-Year Annual</button>
+        <button data-mode="exit">Exit Growth</button>
+      </div>
+      <div class="input-group">
+        <div class="input-row">
+          <label>Low Scenario</label>
+          <input type="text" id="in-low-pct" value="5">
+          <span class="unit">%</span>
+        </div>
+        <div class="input-row">
+          <label>High Scenario</label>
+          <input type="text" id="in-high-pct" value="15">
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>FY26 Exit / FY27 Baseline</h3>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px;">Derived from funnel inputs &times; workstream allocation</p>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:.82rem;margin-bottom:14px;">
+        <span style="color:var(--text-muted);">Monthly NB MRR</span>
+        <span style="text-align:right;font-weight:500;" id="derived-monthly">--</span>
+        <span style="color:var(--text-muted);font-weight:600;">Annualized NB MRR</span>
+        <span style="text-align:right;font-weight:700;" id="derived-annual">--</span>
+      </div>
+
+      <h3>Workstream Allocation</h3>
+      <div class="alloc-slider" id="alloc-slider">
+        <div class="seg traffic" id="seg-traffic"></div>
+        <div class="seg growth" id="seg-growth"></div>
+        <div class="seg web" id="seg-web"></div>
+        <div class="thumb" id="thumb-1"></div>
+        <div class="thumb" id="thumb-2"></div>
+      </div>
+      <div class="alloc-labels">
+        <span><span class="ws-dot traffic"></span>Traffic <strong id="alloc-pct-traffic">30.7%</strong></span>
+        <span><span class="ws-dot growth"></span>Growth <strong id="alloc-pct-growth">44.0%</strong></span>
+        <span><span class="ws-dot web"></span>Web <strong id="alloc-pct-web">25.3%</strong></span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.82rem;margin-top:10px;">
+        <span><span class="ws-dot traffic"></span>Traffic</span>
+        <span style="text-align:right;font-weight:600;" id="derived-traffic">--</span>
+        <span><span class="ws-dot growth"></span>Growth</span>
+        <span style="text-align:right;font-weight:600;" id="derived-growth">--</span>
+        <span><span class="ws-dot web"></span>Web</span>
+        <span style="text-align:right;font-weight:600;" id="derived-web">--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+
+    <!-- Shared workstream toggle -->
+    <div class="card" style="padding:10px 12px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:.78rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;">View by</span>
+        <div class="metric-toggle" id="metric-toggle" style="margin-bottom:0;flex:1;">
+          <button class="active" data-metric="total">Total</button>
+          <button data-metric="traffic">Traffic</button>
+          <button data-metric="growth">Growth</button>
+          <button data-metric="web">Web</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scenario Pacing Chart -->
+    <div class="card">
+      <h2>Scenario Pacing</h2>
+      <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:12px;">Bars show monthly NB MRR; lines show cumulative year-to-date. Each month adds incremental lift on top of baseline.</p>
+
+      <div class="legend-inline">
+        <span><span class="legend-dot" style="background:var(--baseline)"></span> Baseline</span>
+        <span><span class="legend-dot" style="background:var(--low)"></span> Low Scenario</span>
+        <span><span class="legend-dot" style="background:var(--high)"></span> High Scenario</span>
+        <span style="margin-left:8px;color:var(--text-muted);font-style:italic;">Bars = monthly · Lines = cumulative</span>
+      </div>
+      <div id="win-per-month" style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px;"></div>
+
+      <div class="chart-container" style="height:420px;">
+        <canvas id="chart-pacing"></canvas>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="metric-toggle" id="table-view-toggle" style="max-width:260px;margin-bottom:12px;">
+          <button class="active" data-view="monthly">Monthly</button>
+          <button data-view="cumulative">Cumulative</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table id="table-pacing-monthly">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+          <table id="table-pacing-cumulative" style="display:none;">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+
+  
+
+    <!-- Weekly Cohorts → Recognized Revenue -->
+    <div class="card">
+      <h2>Weekly Cohorts &rarr; In-Year Recognized Revenue</h2>
+      <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;">
+        Each week, new booking cohorts arrive. Subscribers pay <strong>monthly</strong>, so each week&rsquo;s cohort generates recognized revenue for the remaining months of the fiscal year. Earlier weeks produce more recognized revenue because their cohorts pay for more months.
+      </p>
+      <div style="overflow:auto;max-height:520px;border:1px solid var(--border);border-radius:8px;">
+        <table id="table-recognized" style="font-size:.8rem;">
+          <thead style="position:sticky;top:0;background:var(--card);z-index:1;"></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="recognized-summary" style="margin-top:16px;"></div>
+    </div>
+
+    <!-- Section 4: Full Year Breakdown -->
+    <div class="card">
+      <h2>Full Year Breakdown</h2>
+      <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;">Annualized NB MRR run-rate, workstream allocation, and in-year recognized revenue from new bookings.</p>
+
+      <div class="compare-row">
+        <div class="compare-card low-card">
+          <h3 style="color:var(--low);">Low Scenario</h3>
+          <div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:.03em;margin-bottom:6px;">Annualized NB MRR</div>
+          <div class="stat"><span>Baseline Annualized NB MRR</span><span class="val" id="cmp-low-baseline">--</span></div>
+          <div class="stat"><span>+ Traffic Incremental</span><span class="val" id="cmp-low-traffic">--</span></div>
+          <div class="stat"><span>+ Growth Incremental</span><span class="val" id="cmp-low-growth">--</span></div>
+          <div class="stat"><span>+ Web Incremental</span><span class="val" id="cmp-low-web">--</span></div>
+          <hr class="divider">
+          <div class="stat"><span><strong>FY27 Exit Run-Rate</strong></span><span class="val" id="cmp-low-total">--</span></div>
+          <div class="stat"><span>Exit Growth vs FY26</span><span class="val" id="cmp-low-exit-growth">--</span></div>
+          <div class="stat"><span><strong>In-Year Incremental NB MRR</strong></span><span class="val" id="cmp-low-inyear">--</span></div>
+
+          <div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:.03em;margin:16px 0 6px;padding-top:12px;border-top:2px solid rgba(99,102,241,.2);">In-Year Recognized Revenue</div>
+          <div class="stat"><span>Baseline Total</span><span class="val" id="cmp-low-rr-base">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span><span class="ws-dot traffic"></span>Traffic</span><span class="val" id="cmp-low-rr-base-traffic">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span><span class="ws-dot growth"></span>Growth</span><span class="val" id="cmp-low-rr-base-growth">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span><span class="ws-dot web"></span>Web</span><span class="val" id="cmp-low-rr-base-web">--</span></div>
+          <div class="stat"><span>+ Incremental Total</span><span class="val" id="cmp-low-rr-incr">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span>+ Traffic</span><span class="val" id="cmp-low-rr-incr-traffic">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span>+ Growth</span><span class="val" id="cmp-low-rr-incr-growth">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span>+ Web</span><span class="val" id="cmp-low-rr-incr-web">--</span></div>
+          <hr class="divider">
+          <div class="stat"><span><strong>Total In-Year Revenue</strong></span><span class="val" id="cmp-low-rr-total">--</span></div>
+        </div>
+        <div class="compare-card high-card">
+          <h3 style="color:var(--high);">High Scenario</h3>
+          <div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:.03em;margin-bottom:6px;">Annualized NB MRR</div>
+          <div class="stat"><span>Baseline Annualized NB MRR</span><span class="val" id="cmp-high-baseline">--</span></div>
+          <div class="stat"><span>+ Traffic Incremental</span><span class="val" id="cmp-high-traffic">--</span></div>
+          <div class="stat"><span>+ Growth Incremental</span><span class="val" id="cmp-high-growth">--</span></div>
+          <div class="stat"><span>+ Web Incremental</span><span class="val" id="cmp-high-web">--</span></div>
+          <hr class="divider">
+          <div class="stat"><span><strong>FY27 Exit Run-Rate</strong></span><span class="val" id="cmp-high-total">--</span></div>
+          <div class="stat"><span>Exit Growth vs FY26</span><span class="val" id="cmp-high-exit-growth">--</span></div>
+          <div class="stat"><span><strong>In-Year Incremental NB MRR</strong></span><span class="val" id="cmp-high-inyear">--</span></div>
+
+          <div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:.03em;margin:16px 0 6px;padding-top:12px;border-top:2px solid rgba(236,72,153,.2);">In-Year Recognized Revenue</div>
+          <div class="stat"><span>Baseline Total</span><span class="val" id="cmp-high-rr-base">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span><span class="ws-dot traffic"></span>Traffic</span><span class="val" id="cmp-high-rr-base-traffic">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span><span class="ws-dot growth"></span>Growth</span><span class="val" id="cmp-high-rr-base-growth">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span><span class="ws-dot web"></span>Web</span><span class="val" id="cmp-high-rr-base-web">--</span></div>
+          <div class="stat"><span>+ Incremental Total</span><span class="val" id="cmp-high-rr-incr">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span>+ Traffic</span><span class="val" id="cmp-high-rr-incr-traffic">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span>+ Growth</span><span class="val" id="cmp-high-rr-incr-growth">--</span></div>
+          <div class="stat" style="padding-left:14px;font-size:.82rem;"><span>+ Web</span><span class="val" id="cmp-high-rr-incr-web">--</span></div>
+          <hr class="divider">
+          <div class="stat"><span><strong>Total In-Year Revenue</strong></span><span class="val" id="cmp-high-rr-total">--</span></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ==================== CONSTANTS & UTILITIES ====================
+const FY_MONTHS = ['Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul'];
+let WS_ALLOC = { traffic: 0.307, growth: 0.440, web: 0.253 };
+const $ = id => document.getElementById(id);
+const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const fmtNum = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const fmtShort = v => {
+  if (Math.abs(v) >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K';
+  return fmt.format(v);
+};
+const fmtNumShort = v => {
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return fmtNum.format(v);
+};
+const pct = (v, d = 1) => v.toFixed(d) + '%';
+const parseN = s => parseFloat(String(s).replace(/[^0-9.\-]/g, '')) || 0;
+
+function formatInputCommas(el) {
+  const v = parseN(el.value);
+  if (!isNaN(v) && v !== 0) el.value = Math.round(v).toLocaleString('en-US');
+}
+
+// Active view & chart instances
+let activeMetric = 'total'; // 'total', 'traffic', 'growth', 'web'
+let scenarioMode = 'inyear'; // 'inyear' or 'exit'
+let tableView = 'monthly'; // 'monthly' or 'cumulative'
+let charts = {};
+
+// Always NB MRR currency formatting
+function fmtMetric(v) { return fmt.format(v); }
+function fmtMetricShort(v) { return fmtShort(v); }
+function viewLabel() {
+  if (activeMetric === 'total') return 'NB MRR';
+  return activeMetric.charAt(0).toUpperCase() + activeMetric.slice(1) + ' NB MRR';
+}
+
+// Helper: get pacing data for the active view
+function getViewData(d) {
+  if (activeMetric === 'total') {
+    return {
+      baseData: d.low.months.map(r => r.baseline.mrr),
+      lowData: d.low.months.map(r => r.total.mrr),
+      highData: d.high.months.map(r => r.total.mrr),
+      baseCum: d.low.months.map(r => r.cumBaseline.mrr),
+      lowCum: d.low.months.map(r => r.cumTotal.mrr),
+      highCum: d.high.months.map(r => r.cumTotal.mrr),
+    };
+  }
+  const alloc = WS_ALLOC[activeMetric];
+  const wsBase = d.exit[activeMetric] / 12;
+  let cb = 0, cl = 0, ch = 0;
+  const baseData = [], lowData = [], highData = [];
+  const baseCum = [], lowCum = [], highCum = [];
+  d.low.months.forEach((lr, i) => {
+    const hr = d.high.months[i];
+    const b = wsBase;
+    const lt = wsBase + lr.incr.mrr * alloc;
+    const ht = wsBase + hr.incr.mrr * alloc;
+    baseData.push(b);
+    lowData.push(lt);
+    highData.push(ht);
+    cb += b; cl += lt; ch += ht;
+    baseCum.push(cb);
+    lowCum.push(cl);
+    highCum.push(ch);
+  });
+  return { baseData, lowData, highData, baseCum, lowCum, highCum };
+}
+
+// ==================== CALCULATION ENGINE ====================
+function getInputs() {
+  return {
+    traffic: parseN($('in-traffic').value),
+    t2a: parseN($('in-t2a').value) / 100,
+    t2aConf: parseN($('in-t2a-conf').value) / 100,
+    a2b: parseN($('in-a2b').value) / 100,
+    a2bConf: parseN($('in-a2b-conf').value) / 100,
+    aov: parseN($('in-aov').value),
+    aovConf: parseN($('in-aov-conf').value) / 100,
+    lowPct: parseN($('in-low-pct').value) / 100,
+    highPct: parseN($('in-high-pct').value) / 100,
+  };
+}
+
+function calculate(inp) {
+  // Funnel conversion → baseline NB MRR
+  const monthlyTraffic = inp.traffic * 52 / 12;
+  const adjT2A = inp.t2a * inp.t2aConf;
+  const adjA2B = inp.a2b * inp.a2bConf;
+  const adjAOV = inp.aov * inp.aovConf;
+
+  const baseActivations = monthlyTraffic * adjT2A;
+  const baseBookings = baseActivations * adjA2B;
+  const baseMRR = baseBookings * adjAOV; // monthly NB MRR from funnel
+
+  // FY26 exit = annualized funnel NB MRR, split by workstream allocation
+  const exitTotal = baseMRR * 12;
+  const exit = {
+    traffic: exitTotal * WS_ALLOC.traffic,
+    growth: exitTotal * WS_ALLOC.growth,
+    web: exitTotal * WS_ALLOC.web,
+  };
+
+  const baseline = { activations: baseActivations, bookings: baseBookings, mrr: baseMRR };
+
+  // Workstream monthly
+  const wsByMonth = {
+    traffic: exit.traffic / 12,
+    growth: exit.growth / 12,
+    web: exit.web / 12,
+  };
+
+  function scenarioCalc(changePct) {
+    // Scale winPerMonth so that the 12-month ramp total = baseline × changePct
+    // Ramp sums 1+2+…+12 = 78, so winPerMonth = baseline × changePct × 12 / 78
+    const rampFactor = scenarioMode === 'inyear' ? 12 / 78 : 1 / 12;
+    const winPerMonth = {
+      activations: baseActivations * changePct * rampFactor,
+      bookings: baseBookings * changePct * rampFactor,
+      mrr: baseMRR * changePct * rampFactor,
+    };
+
+    const months = [];
+    const cumBase = { activations: 0, bookings: 0, mrr: 0 };
+    const cumTotal = { activations: 0, bookings: 0, mrr: 0 };
+
+    for (let m = 1; m <= 12; m++) {
+      const incr = {
+        activations: m * winPerMonth.activations,
+        bookings: m * winPerMonth.bookings,
+        mrr: m * winPerMonth.mrr,
+      };
+      const total = {
+        activations: baseActivations + incr.activations,
+        bookings: baseBookings + incr.bookings,
+        mrr: baseMRR + incr.mrr,
+      };
+      cumBase.activations += baseActivations;
+      cumBase.bookings += baseBookings;
+      cumBase.mrr += baseMRR;
+      cumTotal.activations += total.activations;
+      cumTotal.bookings += total.bookings;
+      cumTotal.mrr += total.mrr;
+
+      months.push({
+        label: FY_MONTHS[m - 1],
+        baseline: { ...baseline },
+        incr,
+        total,
+        cumBaseline: { ...cumBase },
+        cumTotal: { ...cumTotal },
+      });
+    }
+
+    const annualBaseline = { activations: baseActivations * 12, bookings: baseBookings * 12, mrr: baseMRR * 12 };
+    const annualTotal = { activations: cumTotal.activations, bookings: cumTotal.bookings, mrr: cumTotal.mrr };
+    const annualIncr = {
+      activations: annualTotal.activations - annualBaseline.activations,
+      bookings: annualTotal.bookings - annualBaseline.bookings,
+      mrr: annualTotal.mrr - annualBaseline.mrr,
+    };
+
+    // Exit rate: month 12 has 12 lifts stacked, so exit gain = changePct × 144/78
+    const exitGainPct = scenarioMode === 'inyear'
+      ? changePct * 144 / 78
+      : changePct;
+
+    // Workstream incremental (allocated by target contribution, exit-rate basis)
+    const totalExitIncr = exitTotal * exitGainPct;
+    const wsIncr = {
+      traffic: totalExitIncr * WS_ALLOC.traffic,
+      growth: totalExitIncr * WS_ALLOC.growth,
+      web: totalExitIncr * WS_ALLOC.web,
+    };
+
+    // FY27 exit run-rate
+    const fy27ExitRate = exitTotal * (1 + exitGainPct);
+
+    return { winPerMonth, months, annualBaseline, annualTotal, annualIncr, wsIncr, fy27ExitRate };
+  }
+
+  const low = scenarioCalc(inp.lowPct);
+  const high = scenarioCalc(inp.highPct);
+
+  return { baseline, exit, exitTotal, wsByMonth, low, high };
+}
+
+// ==================== RENDERING ====================
+
+
+// ---------- Funnel-Derived Baseline Display ----------
+function renderFunnelSummary(d) {
+  $('derived-monthly').textContent = fmt.format(d.exitTotal / 12);
+  $('derived-annual').textContent = fmt.format(d.exitTotal);
+  $('derived-traffic').textContent = fmt.format(d.exit.traffic);
+  $('derived-growth').textContent = fmt.format(d.exit.growth);
+  $('derived-web').textContent = fmt.format(d.exit.web);
+}
+
+// ---------- Avg Monthly Lift Callout ----------
+function renderWinPerMonth(d) {
+  const label = viewLabel();
+  let lowW = d.low.winPerMonth.mrr;
+  let highW = d.high.winPerMonth.mrr;
+  if (activeMetric !== 'total') {
+    const alloc = WS_ALLOC[activeMetric];
+    lowW *= alloc;
+    highW *= alloc;
+  }
+  $('win-per-month').innerHTML = `Avg monthly lift (${label}): <span style="color:var(--low);font-weight:600;">Low +${fmt.format(lowW)}</span> · <span style="color:var(--high);font-weight:600;">High +${fmt.format(highW)}</span> &mdash; accumulating 1&rarr;12 months of lift over the year <span style="font-style:italic;">(see <a href="../tutorials/nb-mrr-tutorial.html" style="color:var(--accent);">ramp formula</a>)</span>`;
+}
+
+// ---------- Update chart emphasis without re-rendering ----------
+function updateChartEmphasis() {
+  if (!charts.pacing) return;
+  const isMo = tableView === 'monthly';
+  const bA = isMo ? .85 : .25;
+  const lA = isMo ? .35 : 1;
+  const lw = isMo ? 1.5 : 2.5;
+  const lwB = isMo ? 1.5 : 2;
+  const pr = isMo ? 2 : 4;
+
+  const ds = charts.pacing.data.datasets;
+  // Bars (datasets 0-2)
+  ds[0].backgroundColor = `rgba(148,163,184,${bA})`;
+  ds[1].backgroundColor = `rgba(129,140,248,${bA})`;
+  ds[2].backgroundColor = `rgba(244,114,182,${bA})`;
+  // Lines (datasets 3-5)
+  ds[3].borderColor = `rgba(148,163,184,${lA})`;
+  ds[3].pointBackgroundColor = `rgba(148,163,184,${lA})`;
+  ds[3].borderWidth = lwB;
+  ds[3].pointRadius = pr;
+  ds[4].borderColor = `rgba(99,102,241,${lA})`;
+  ds[4].pointBackgroundColor = `rgba(99,102,241,${lA})`;
+  ds[4].borderWidth = lw;
+  ds[4].pointRadius = pr;
+  ds[5].borderColor = `rgba(236,72,153,${lA})`;
+  ds[5].pointBackgroundColor = `rgba(236,72,153,${lA})`;
+  ds[5].borderWidth = lw;
+  ds[5].pointRadius = pr;
+
+  charts.pacing.update();
+}
+
+// ---------- Combo Pacing Chart (bars=monthly, lines=cumulative) ----------
+function renderPacingChart(d) {
+  const vd = getViewData(d);
+
+  if (charts.pacing) charts.pacing.destroy();
+  const ctx = $('chart-pacing').getContext('2d');
+
+  // Opacity: emphasize bars when monthly, lines when cumulative
+  const isMo = tableView === 'monthly';
+  const barAlpha = isMo ? '.85' : '.25';
+  const lineAlpha = isMo ? '.35' : '1';
+  const lineWidth = isMo ? 1.5 : 2.5;
+  const lineWidthBase = isMo ? 1.5 : 2;
+  const pointR = isMo ? 2 : 4;
+
+  charts.pacing = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: FY_MONTHS,
+      datasets: [
+        // --- Bars: monthly values (left y-axis) ---
+        {
+          type: 'bar',
+          label: 'Baseline',
+          data: vd.baseData,
+          backgroundColor: `rgba(148,163,184,${barAlpha})`,
+          borderRadius: 4,
+          yAxisID: 'y',
+          order: 6,
+        },
+        {
+          type: 'bar',
+          label: 'Low Scenario',
+          data: vd.lowData,
+          backgroundColor: `rgba(129,140,248,${barAlpha})`,
+          borderRadius: 4,
+          yAxisID: 'y',
+          order: 5,
+        },
+        {
+          type: 'bar',
+          label: 'High Scenario',
+          data: vd.highData,
+          backgroundColor: `rgba(244,114,182,${barAlpha})`,
+          borderRadius: 4,
+          yAxisID: 'y',
+          order: 4,
+        },
+        // --- Lines: cumulative values (right y-axis) ---
+        {
+          type: 'line',
+          label: 'Baseline (cum.)',
+          data: vd.baseCum,
+          borderColor: `rgba(148,163,184,${lineAlpha})`,
+          borderWidth: lineWidthBase,
+          borderDash: [6, 3],
+          pointRadius: pointR,
+          pointBackgroundColor: `rgba(148,163,184,${lineAlpha})`,
+          fill: false,
+          tension: 0.15,
+          yAxisID: 'y1',
+          order: 3,
+        },
+        {
+          type: 'line',
+          label: 'Low Scenario (cum.)',
+          data: vd.lowCum,
+          borderColor: `rgba(99,102,241,${lineAlpha})`,
+          borderWidth: lineWidth,
+          pointRadius: pointR,
+          pointBackgroundColor: `rgba(99,102,241,${lineAlpha})`,
+          fill: false,
+          tension: 0.15,
+          yAxisID: 'y1',
+          order: 2,
+        },
+        {
+          type: 'line',
+          label: 'High Scenario (cum.)',
+          data: vd.highCum,
+          borderColor: `rgba(236,72,153,${lineAlpha})`,
+          borderWidth: lineWidth,
+          pointRadius: pointR,
+          pointBackgroundColor: `rgba(236,72,153,${lineAlpha})`,
+          fill: false,
+          tension: 0.15,
+          yAxisID: 'y1',
+          order: 1,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            boxWidth: 12, padding: 12, font: { size: 11 },
+            // Show cleaner legend by filtering duplicate style entries
+            generateLabels: chart => {
+              return [
+                { text: 'Baseline', fillColor: `rgba(148,163,184,${barAlpha})`, strokeStyle: `rgba(148,163,184,${lineAlpha})`, lineWidth: lineWidthBase, lineDash: [6,3], hidden: false, datasetIndex: 0 },
+                { text: 'Low Scenario', fillColor: `rgba(129,140,248,${barAlpha})`, strokeStyle: `rgba(99,102,241,${lineAlpha})`, lineWidth: lineWidth, hidden: false, datasetIndex: 1 },
+                { text: 'High Scenario', fillColor: `rgba(244,114,182,${barAlpha})`, strokeStyle: `rgba(236,72,153,${lineAlpha})`, lineWidth: lineWidth, hidden: false, datasetIndex: 2 },
+              ];
+            }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            title: items => items[0].label + ' — ' + viewLabel(),
+            label: ctx => {
+              const v = ctx.parsed.y;
+              const lbl = ctx.dataset.label;
+              const isCum = lbl.includes('cum.');
+              const prefix = isCum ? 'YTD ' : '';
+              const cleanLabel = lbl.replace(' (cum.)', '');
+              return prefix + cleanLabel + ': ' + fmtMetric(v);
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          position: 'left',
+          beginAtZero: false,
+          ticks: { callback: v => fmtMetricShort(v) },
+          grid: { color: '#f0f1f3' },
+          title: { display: true, text: 'Monthly ' + viewLabel(), font: { size: 12 } }
+        },
+        y1: {
+          position: 'right',
+          beginAtZero: true,
+          ticks: { callback: v => fmtMetricShort(v) },
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: 'Cumulative ' + viewLabel(), font: { size: 12 } }
+        },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ---------- Pacing Tables (Monthly + Cumulative) ----------
+function renderPacingTable(d) {
+  const vd = getViewData(d);
+  const annBase = vd.baseData[0] * 12;
+
+  // --- Monthly table ---
+  const mThead = document.querySelector('#table-pacing-monthly thead');
+  const mTbody = document.querySelector('#table-pacing-monthly tbody');
+
+  mThead.innerHTML = `<tr>
+    <th>Month</th>
+    <th class="right">Baseline</th>
+    <th class="right">Low</th>
+    <th class="right" style="color:var(--low)">Low % &Delta;</th>
+    <th class="right">High</th>
+    <th class="right" style="color:var(--high)">High % &Delta;</th>
+  </tr>`;
+
+  let sumBase = 0, sumLow = 0, sumHigh = 0;
+  mTbody.innerHTML = FY_MONTHS.map((label, i) => {
+    const b = vd.baseData[i];
+    const lt = vd.lowData[i];
+    const ht = vd.highData[i];
+    const ldPct = b > 0 ? (lt - b) / b * 100 : 0;
+    const hdPct = b > 0 ? (ht - b) / b * 100 : 0;
+    sumBase += b; sumLow += lt; sumHigh += ht;
+    return `<tr>
+      <td>${label}</td>
+      <td class="right">${fmtMetric(b)}</td>
+      <td class="right">${fmtMetric(lt)}</td>
+      <td class="right" style="color:var(--low)">+${pct(ldPct, 2)}</td>
+      <td class="right">${fmtMetric(ht)}</td>
+      <td class="right" style="color:var(--high)">+${pct(hdPct, 2)}</td>
+    </tr>`;
+  }).join('') + `<tr class="total-row">
+    <td>FY Average</td>
+    <td class="right">${fmtMetric(sumBase / 12)}</td>
+    <td class="right">${fmtMetric(sumLow / 12)}</td>
+    <td class="right" style="color:var(--low)">+${pct(annBase > 0 ? (sumLow - sumBase) / annBase * 100 : 0, 2)}</td>
+    <td class="right">${fmtMetric(sumHigh / 12)}</td>
+    <td class="right" style="color:var(--high)">+${pct(annBase > 0 ? (sumHigh - sumBase) / annBase * 100 : 0, 2)}</td>
+  </tr>`;
+
+  // --- Cumulative table ---
+  const cThead = document.querySelector('#table-pacing-cumulative thead');
+  const cTbody = document.querySelector('#table-pacing-cumulative tbody');
+
+  cThead.innerHTML = `<tr>
+    <th>Month</th>
+    <th class="right">Baseline</th>
+    <th class="right">Low</th>
+    <th class="right" style="color:var(--low)">Low % &Delta;</th>
+    <th class="right">High</th>
+    <th class="right" style="color:var(--high)">High % &Delta;</th>
+  </tr>`;
+
+  let cBase = 0, cLow = 0, cHigh = 0;
+  cTbody.innerHTML = FY_MONTHS.map((label, i) => {
+    cBase += vd.baseData[i];
+    cLow += vd.lowData[i];
+    cHigh += vd.highData[i];
+    const clPct = cBase > 0 ? (cLow - cBase) / cBase * 100 : 0;
+    const chPct = cBase > 0 ? (cHigh - cBase) / cBase * 100 : 0;
+    return `<tr>
+      <td>${label}</td>
+      <td class="right">${fmtMetric(cBase)}</td>
+      <td class="right">${fmtMetric(cLow)}</td>
+      <td class="right" style="color:var(--low)">+${pct(clPct, 2)}</td>
+      <td class="right">${fmtMetric(cHigh)}</td>
+      <td class="right" style="color:var(--high)">+${pct(chPct, 2)}</td>
+    </tr>`;
+  }).join('') + `<tr class="total-row">
+    <td>FY Total</td>
+    <td class="right">${fmtMetric(cBase)}</td>
+    <td class="right">${fmtMetric(cLow)}</td>
+    <td class="right" style="color:var(--low)">+${pct(annBase > 0 ? (cLow - cBase) / annBase * 100 : 0, 2)}</td>
+    <td class="right">${fmtMetric(cHigh)}</td>
+    <td class="right" style="color:var(--high)">+${pct(annBase > 0 ? (cHigh - cBase) / annBase * 100 : 0, 2)}</td>
+  </tr>`;
+}
+
+// ---------- Recognized Revenue Table (weekly rows) ----------
+function renderRecognizedRevenueTable(d) {
+  const vd = getViewData(d);
+  const WPM = 52 / 12; // weeks per month ≈ 4.333
+
+  const thead = document.querySelector('#table-recognized thead');
+  const tbody = document.querySelector('#table-recognized tbody');
+
+  thead.innerHTML = `<tr>
+    <th style="width:46px;">Week</th>
+    <th>Month</th>
+    <th class="right">Mo. Left</th>
+    <th class="right">Weekly NB MRR</th>
+    <th class="right">Cohort Ann. NB MRR</th>
+    <th class="right">Cum. Ann. NB MRR</th>
+  </tr>`;
+
+  let cumBase = 0, cumLow = 0, cumHigh = 0;
+  let prevMonth = -1;
+
+  const rows = [];
+  for (let w = 0; w < 52; w++) {
+    const mIdx = Math.min(11, Math.floor(w * 12 / 52));
+    const monthsLeft = 12 - mIdx;
+    const isFirst = mIdx !== prevMonth;
+    prevMonth = mIdx;
+
+    const bWk = vd.baseData[mIdx] / WPM;
+    const bCohort = bWk * monthsLeft;
+    cumBase += bCohort;
+    cumLow += (vd.lowData[mIdx] / WPM) * monthsLeft;
+    cumHigh += (vd.highData[mIdx] / WPM) * monthsLeft;
+
+    const border = isFirst && w > 0 ? 'border-top:2px solid var(--border);' : '';
+    const bg = mIdx % 2 === 1 ? 'background:#fafbfc;' : '';
+
+    rows.push(`<tr style="${border}${bg}">
+      <td>${w + 1}</td>
+      <td>${isFirst ? '<strong>' + FY_MONTHS[mIdx] + '</strong>' : ''}</td>
+      <td class="right">${isFirst ? monthsLeft : ''}</td>
+      <td class="right">${fmtMetric(bWk)}</td>
+      <td class="right">${fmtMetric(bCohort)}</td>
+      <td class="right">${fmtMetric(cumBase)}</td>
+    </tr>`);
+  }
+
+  const annBase = vd.baseData.reduce((a, b) => a + b, 0);
+
+  tbody.innerHTML = rows.join('') + `<tr class="total-row">
+    <td colspan="2">FY Total (52 weeks)</td>
+    <td class="right">&mdash;</td>
+    <td class="right">${fmtMetric(annBase / 52)} <span style="font-size:.7rem;color:var(--text-muted);font-weight:400;">avg</span></td>
+    <td class="right">${fmtMetric(cumBase / 12)} <span style="font-size:.7rem;color:var(--text-muted);font-weight:400;">mo. avg</span></td>
+    <td class="right">${fmtMetric(cumBase)}</td>
+  </tr>`;
+
+  // Summary: compare all 3 scenarios
+  const annLow = vd.lowData.reduce((a, b) => a + b, 0);
+  const annHigh = vd.highData.reduce((a, b) => a + b, 0);
+  const multBase = annBase > 0 ? (cumBase / annBase).toFixed(1) : '-';
+
+  $('recognized-summary').innerHTML = `
+    <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:10px;">Scenario comparison &mdash; annualized NB MRR vs. in-year recognized revenue from those new bookings (assumes zero churn):</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+      <div style="background:#f1f5f9;border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:.03em;margin-bottom:6px;">Baseline</div>
+        <div style="font-size:.78rem;color:var(--text-muted);">Annualized NB MRR</div>
+        <div style="font-size:.95rem;font-weight:600;margin:2px 0;">${fmtMetric(annBase)}</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-top:8px;">In-Year Recognized Rev.</div>
+        <div style="font-size:1.2rem;font-weight:700;margin:2px 0;">${fmtMetric(cumBase)}</div>
+        <div style="font-size:.82rem;color:var(--text-muted);margin-top:4px;">${multBase}&times; NB MRR</div>
+      </div>
+      <div style="background:#eef2ff;border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:.75rem;color:var(--low);text-transform:uppercase;font-weight:600;letter-spacing:.03em;margin-bottom:6px;">Low Scenario</div>
+        <div style="font-size:.78rem;color:var(--text-muted);">Annualized NB MRR</div>
+        <div style="font-size:.95rem;font-weight:600;margin:2px 0;">${fmtMetric(annLow)}</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-top:8px;">In-Year Recognized Rev.</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--low);margin:2px 0;">${fmtMetric(cumLow)}</div>
+        <div style="font-size:.82rem;color:var(--positive);margin-top:4px;">+${fmtMetric(cumLow - cumBase)} vs baseline</div>
+      </div>
+      <div style="background:#fdf2f8;border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:.75rem;color:var(--high);text-transform:uppercase;font-weight:600;letter-spacing:.03em;margin-bottom:6px;">High Scenario</div>
+        <div style="font-size:.78rem;color:var(--text-muted);">Annualized NB MRR</div>
+        <div style="font-size:.95rem;font-weight:600;margin:2px 0;">${fmtMetric(annHigh)}</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-top:8px;">In-Year Recognized Rev.</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--high);margin:2px 0;">${fmtMetric(cumHigh)}</div>
+        <div style="font-size:.82rem;color:var(--positive);margin-top:4px;">+${fmtMetric(cumHigh - cumBase)} vs baseline</div>
+      </div>
+    </div>`;
+}
+
+// ---------- Comparison Cards ----------
+function renderComparisonCards(d) {
+  const exitTotal = d.exitTotal;
+
+  // Recognized revenue multipliers:
+  // Baseline (flat monthly): each month's cohort pays for remaining months → sum of 12+11+...+1 = 78
+  // So baseline recognized rev = (annual NB MRR / 12) × 78 = annual × 6.5
+  const RR_BASE_MULT = 78; // Σ(13-m) for m=1..12
+  // Incremental (ramping): month m has m×winPerMonth of incremental, pays for (13-m) remaining months
+  // → Σ m×(13-m) for m=1..12 = 364
+  const RR_INCR_MULT = 364;
+
+  // Baseline recognized revenue by workstream
+  const baseRR = {
+    traffic: (d.exit.traffic / 12) * RR_BASE_MULT,
+    growth: (d.exit.growth / 12) * RR_BASE_MULT,
+    web: (d.exit.web / 12) * RR_BASE_MULT,
+  };
+  const baseRRTotal = baseRR.traffic + baseRR.growth + baseRR.web;
+
+  function renderScenario(prefix, scenario) {
+    // NB MRR section
+    $(prefix + '-baseline').textContent = fmt.format(exitTotal);
+    $(prefix + '-traffic').textContent = '+' + fmt.format(scenario.wsIncr.traffic);
+    $(prefix + '-growth').textContent = '+' + fmt.format(scenario.wsIncr.growth);
+    $(prefix + '-web').textContent = '+' + fmt.format(scenario.wsIncr.web);
+    $(prefix + '-total').textContent = fmt.format(scenario.fy27ExitRate);
+    const exitGrowth = scenario.fy27ExitRate - exitTotal;
+    $(prefix + '-exit-growth').textContent = '+' + fmt.format(exitGrowth) + ' (' + pct(exitGrowth / exitTotal * 100) + ')';
+    const inYear = scenario.annualIncr.mrr;
+    $(prefix + '-inyear').textContent = '+' + fmt.format(inYear) + ' (' + pct(inYear / exitTotal * 100) + ')';
+
+    // Recognized revenue section
+    // Baseline (same for both scenarios)
+    $(prefix + '-rr-base').textContent = fmt.format(baseRRTotal);
+    $(prefix + '-rr-base-traffic').textContent = fmt.format(baseRR.traffic);
+    $(prefix + '-rr-base-growth').textContent = fmt.format(baseRR.growth);
+    $(prefix + '-rr-base-web').textContent = fmt.format(baseRR.web);
+
+    // Incremental recognized revenue = winPerMonth.mrr × alloc × 364
+    const wpm = scenario.winPerMonth.mrr;
+    const incrRR = {
+      traffic: wpm * WS_ALLOC.traffic * RR_INCR_MULT,
+      growth: wpm * WS_ALLOC.growth * RR_INCR_MULT,
+      web: wpm * WS_ALLOC.web * RR_INCR_MULT,
+    };
+    const incrRRTotal = incrRR.traffic + incrRR.growth + incrRR.web;
+
+    $(prefix + '-rr-incr').textContent = '+' + fmt.format(incrRRTotal);
+    $(prefix + '-rr-incr-traffic').textContent = '+' + fmt.format(incrRR.traffic);
+    $(prefix + '-rr-incr-growth').textContent = '+' + fmt.format(incrRR.growth);
+    $(prefix + '-rr-incr-web').textContent = '+' + fmt.format(incrRR.web);
+    $(prefix + '-rr-total').textContent = fmt.format(baseRRTotal + incrRRTotal);
+  }
+
+  renderScenario('cmp-low', d.low);
+  renderScenario('cmp-high', d.high);
+}
+
+
+// ==================== MASTER RECALCULATE ====================
+let _debounceTimer;
+function recalculate() { clearTimeout(_debounceTimer); _debounceTimer = setTimeout(_doRecalculate, 80); }
+
+function _doRecalculate() {
+  const inp = getInputs();
+  const d = calculate(inp);
+
+  // Tables & text (always work)
+  renderFunnelSummary(d);
+  renderWinPerMonth(d);
+  renderPacingTable(d);
+  renderRecognizedRevenueTable(d);
+  renderComparisonCards(d);
+
+  // Charts (need Chart.js from CDN)
+  if (typeof Chart !== 'undefined') {
+    renderPacingChart(d);
+  }
+}
+
+// ==================== EVENT WIRING ====================
+document.querySelectorAll('.sidebar input').forEach(el => {
+  el.addEventListener('input', recalculate);
+  if (el.id === 'in-traffic') {
+    el.addEventListener('blur', () => formatInputCommas(el));
+  }
+});
+
+// Scenario mode toggle (In-Year Annual / Exit Growth)
+document.querySelectorAll('#scenario-mode-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#scenario-mode-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    scenarioMode = btn.dataset.mode;
+    _doRecalculate();
+  });
+});
+
+// Metric toggle (Total / Traffic / Growth / Web)
+document.querySelectorAll('#metric-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#metric-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeMetric = btn.dataset.metric;
+    _doRecalculate();
+  });
+});
+
+// Table view toggle (Monthly / Cumulative)
+document.querySelectorAll('#table-view-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#table-view-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    tableView = btn.dataset.view;
+    $('table-pacing-monthly').style.display = tableView === 'monthly' ? '' : 'none';
+    $('table-pacing-cumulative').style.display = tableView === 'cumulative' ? '' : 'none';
+    // Update chart opacity in-place without reloading
+    updateChartEmphasis();
+  });
+});
+
+// ==================== WORKSTREAM ALLOCATION SLIDER ====================
+(function() {
+  const slider = $('alloc-slider');
+  const thumb1 = $('thumb-1');
+  const thumb2 = $('thumb-2');
+  const segTraffic = $('seg-traffic');
+  const segGrowth = $('seg-growth');
+  const segWeb = $('seg-web');
+
+  // Thumb positions as % (0-100). thumb1 = boundary between traffic/growth, thumb2 = boundary between growth/web
+  let t1 = WS_ALLOC.traffic * 100;  // 30.7
+  let t2 = (WS_ALLOC.traffic + WS_ALLOC.growth) * 100;  // 74.7
+
+  function updateSliderUI() {
+    const pTraffic = t1;
+    const pGrowth = t2 - t1;
+    const pWeb = 100 - t2;
+
+    segTraffic.style.width = pTraffic + '%';
+    segTraffic.textContent = pTraffic >= 8 ? pTraffic.toFixed(1) + '%' : '';
+    segGrowth.style.left = pTraffic + '%';
+    segGrowth.style.width = pGrowth + '%';
+    segGrowth.textContent = pGrowth >= 8 ? pGrowth.toFixed(1) + '%' : '';
+    segWeb.style.left = t2 + '%';
+    segWeb.style.width = pWeb + '%';
+    segWeb.textContent = pWeb >= 8 ? pWeb.toFixed(1) + '%' : '';
+
+    thumb1.style.left = pTraffic + '%';
+    thumb2.style.left = t2 + '%';
+
+    $('alloc-pct-traffic').textContent = pTraffic.toFixed(1) + '%';
+    $('alloc-pct-growth').textContent = pGrowth.toFixed(1) + '%';
+    $('alloc-pct-web').textContent = pWeb.toFixed(1) + '%';
+  }
+
+  function applyAlloc() {
+    WS_ALLOC.traffic = t1 / 100;
+    WS_ALLOC.growth = (t2 - t1) / 100;
+    WS_ALLOC.web = (100 - t2) / 100;
+    recalculate();
+  }
+
+  function pctFromEvent(e) {
+    const rect = slider.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    return Math.max(0, Math.min(100, (x / rect.width) * 100));
+  }
+
+  let dragging = null; // 'thumb1' or 'thumb2'
+  const MIN_GAP = 3; // minimum 3% per segment
+
+  function onMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const p = pctFromEvent(e);
+    if (dragging === 'thumb1') {
+      t1 = Math.max(MIN_GAP, Math.min(t2 - MIN_GAP, p));
+    } else {
+      t2 = Math.max(t1 + MIN_GAP, Math.min(100 - MIN_GAP, p));
+    }
+    updateSliderUI();
+    applyAlloc();
+  }
+
+  function onUp() {
+    dragging = null;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+  }
+
+  function startDrag(which) {
+    return function(e) {
+      e.preventDefault();
+      dragging = which;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onUp);
+    };
+  }
+
+  thumb1.addEventListener('mousedown', startDrag('thumb1'));
+  thumb1.addEventListener('touchstart', startDrag('thumb1'), { passive: false });
+  thumb2.addEventListener('mousedown', startDrag('thumb2'));
+  thumb2.addEventListener('touchstart', startDrag('thumb2'), { passive: false });
+
+  // Click on slider bar to move nearest thumb
+  slider.addEventListener('click', e => {
+    if (e.target === thumb1 || e.target === thumb2) return;
+    const p = pctFromEvent(e);
+    const d1 = Math.abs(p - t1);
+    const d2 = Math.abs(p - t2);
+    if (d1 <= d2) {
+      t1 = Math.max(MIN_GAP, Math.min(t2 - MIN_GAP, p));
+    } else {
+      t2 = Math.max(t1 + MIN_GAP, Math.min(100 - MIN_GAP, p));
+    }
+    updateSliderUI();
+    applyAlloc();
+  });
+
+  // Initial paint
+  updateSliderUI();
+})();
+
+// Initial render
+_doRecalculate();
+</script>
+</body>
+</html>
