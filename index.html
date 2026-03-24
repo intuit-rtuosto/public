@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Revenue Analytics Tools</title>
+<title>Mailchimp.com Resources</title>
 <style>
   :root {
     --bg: #f8fafc;
@@ -25,6 +25,11 @@
   h1 { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 10px; }
   .subtitle { color: var(--muted); font-size: 1.05rem; margin-bottom: 48px; }
 
+  .section-label {
+    font-size: .75rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted); margin-bottom: 12px;
+  }
+  .section + .section { margin-top: 36px; }
   .tools { display: flex; flex-direction: column; gap: 16px; }
 
   .tool-card {
@@ -65,29 +70,35 @@
 <body>
 <div class="page">
 
-  <h1>Revenue Analytics</h1>
-  <p class="subtitle">Self-serve tools for NB MRR forecasting and scenario planning.</p>
+  <h1>Mailchimp.com Resources</h1>
+  <p class="subtitle">Self-serve tools and guides for revenue forecasting and scenario planning.</p>
 
-  <div class="tools">
+  <div class="section">
+    <div class="section-label">Tools</div>
+    <div class="tools">
+      <a class="tool-card" href="tools/nb-mrr-calculator.html">
+        <div class="tool-icon">📊</div>
+        <div class="tool-body">
+          <div class="tool-name">NB MRR Pacing Calculator</div>
+          <div class="tool-desc">Model low/high scenarios for new booking MRR across the fiscal year. Inputs your funnel metrics (traffic, T2A, A2B, AOV) and shows monthly pacing, exit run-rate, workstream splits, and in-year recognized revenue.</div>
+        </div>
+        <div class="tool-arrow">→</div>
+      </a>
+    </div>
+  </div>
 
-    <a class="tool-card" href="tools/nb-mrr-calculator.html">
-      <div class="tool-icon">📊</div>
-      <div class="tool-body">
-        <div class="tool-name">NB MRR Pacing Calculator</div>
-        <div class="tool-desc">Model low/high scenarios for new booking MRR across the fiscal year. Inputs your funnel metrics (traffic, T2A, A2B, AOV) and shows monthly pacing, exit run-rate, workstream splits, and in-year recognized revenue.</div>
-      </div>
-      <div class="tool-arrow">→</div>
-    </a>
-
-    <a class="tool-card" href="tutorials/nb-mrr-tutorial.html">
-      <div class="tool-icon">📖</div>
-      <div class="tool-body">
-        <div class="tool-name">Understanding NB MRR Pacing</div>
-        <div class="tool-desc">Step-by-step guide to how baseline performance, incremental lift, and annualized targets work together — including the ramp formula, the 54% rule, and how new bookings translate to in-year recognized revenue.</div>
-      </div>
-      <div class="tool-arrow">→</div>
-    </a>
-
+  <div class="section">
+    <div class="section-label">Tutorials</div>
+    <div class="tools">
+      <a class="tool-card" href="tutorials/nb-mrr-tutorial.html">
+        <div class="tool-icon">📖</div>
+        <div class="tool-body">
+          <div class="tool-name">Understanding NB MRR Pacing</div>
+          <div class="tool-desc">Step-by-step guide to how baseline performance, incremental lift, and annualized targets work together — including the ramp formula, the 54% rule, and how new bookings translate to in-year recognized revenue.</div>
+        </div>
+        <div class="tool-arrow">→</div>
+      </a>
+    </div>
   </div>
 
   <hr class="divider">
