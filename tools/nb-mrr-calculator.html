@@ -869,6 +869,12 @@ function renderRecognizedRevenueTable(d) {
     <th class="right">Cum. Ann. NB MRR</th>
   </tr>`;
 
+  // Precompute actual week count per month (floor mapping gives some months 5 weeks, some 4).
+  // Normalizing by monthWeekCounts instead of WPM ensures each month's cohort contribution
+  // sums to monthlyNBMRR × monthsLeft — matching the analytic formula (annualNBMRR × 6.5).
+  const monthWeekCounts = Array(12).fill(0);
+  for (let w = 0; w < 52; w++) monthWeekCounts[Math.min(11, Math.floor(w * 12 / 52))]++;
+
   let cumBase = 0, cumLow = 0, cumHigh = 0;
   let prevMonth = -1;
 
@@ -880,10 +886,10 @@ function renderRecognizedRevenueTable(d) {
     prevMonth = mIdx;
 
     const bWk = vd.baseData[mIdx] / WPM;
-    const bCohort = bWk * monthsLeft;
+    const bCohort = vd.baseData[mIdx] * monthsLeft / monthWeekCounts[mIdx];
     cumBase += bCohort;
-    cumLow += (vd.lowData[mIdx] / WPM) * monthsLeft;
-    cumHigh += (vd.highData[mIdx] / WPM) * monthsLeft;
+    cumLow += vd.lowData[mIdx] * monthsLeft / monthWeekCounts[mIdx];
+    cumHigh += vd.highData[mIdx] * monthsLeft / monthWeekCounts[mIdx];
 
     const border = isFirst && w > 0 ? 'border-top:2px solid var(--border);' : '';
     const bg = mIdx % 2 === 1 ? 'background:#fafbfc;' : '';

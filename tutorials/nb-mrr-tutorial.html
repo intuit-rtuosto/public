@@ -102,16 +102,68 @@
   }
   .glossary dt:first-child { border-top: none; padding-top: 0; margin-top: 0; }
   .glossary dd { margin: 4px 0 0 0; color: var(--muted); font-size: .92rem; line-height: 1.65; }
+
+  /* Two-column layout: TOC on left, content on right */
+  .layout {
+    display: flex; max-width: 1060px; margin: 0 auto;
+    padding: 48px 24px 80px; gap: 48px; align-items: flex-start;
+  }
+  .layout .page { flex: 1; min-width: 0; max-width: none; margin: 0; padding: 0; }
+
+  /* Left sticky TOC */
+  .toc { width: 188px; flex-shrink: 0; position: sticky; top: 32px; }
+  .toc-label {
+    font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted); margin-bottom: 8px; padding-left: 12px;
+  }
+  .toc a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 12px 5px 10px; color: var(--muted); text-decoration: none;
+    border-left: 2px solid var(--border); font-size: .82rem; line-height: 1.35;
+    transition: color .15s, border-color .15s, background .15s;
+    border-radius: 0 6px 6px 0;
+  }
+  .toc a:hover { color: var(--text); border-left-color: var(--accent); background: rgba(79,70,229,.05); }
+  .toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; background: rgba(79,70,229,.06); }
+  .toc-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--border); color: var(--muted);
+    font-weight: 700; font-size: .65rem; flex-shrink: 0;
+    transition: background .15s, color .15s;
+  }
+  .toc a.active .toc-num { background: var(--accent); color: #fff; }
+
+  @media (max-width: 780px) {
+    .layout { flex-direction: column; padding-top: 32px; gap: 0; }
+    .toc { display: none; }
+  }
 </style>
 </head>
 <body>
+<div class="layout">
+
+<nav class="toc" aria-label="Page sections">
+  <div class="toc-label">Contents</div>
+  <a href="#step-1"><span class="toc-num">1</span>Baseline</a>
+  <a href="#step-2"><span class="toc-num">2</span>Incremental Lift</a>
+  <a href="#step-3"><span class="toc-num">3</span>Three "Monthly" Numbers</a>
+  <a href="#step-4"><span class="toc-num">4</span>Annual Total</a>
+  <a href="#step-5"><span class="toc-num">5</span>Ramp Formula</a>
+  <a href="#step-6"><span class="toc-num">6</span>"10% Lift" on What?</a>
+  <a href="#step-7"><span class="toc-num">7</span>The 54% Rule</a>
+  <a href="#step-8"><span class="toc-num">8</span>Earlier Lift &gt; Later</a>
+  <a href="#step-9"><span class="toc-num">9</span>Recognized Revenue</a>
+  <a href="#glossary"><span class="toc-num">G</span>Glossary</a>
+</nav>
+
 <div class="page">
 
 <h1>Understanding NB MRR Pacing</h1>
 <p class="subtitle">A step-by-step guide to how baseline performance, incremental lift, and annualized targets work together. When you&rsquo;re ready to model your own funnel, open the <a class="text-link" href="../tools/nb-mrr-calculator.html">NB MRR pacing calculator</a>.</p>
 
 <!-- ========== STEP 1 ========== -->
-<h2><span class="step-num">1</span> Baseline: The Starting Point</h2>
+<h2 id="step-1"><span class="step-num">1</span> Baseline: The Starting Point</h2>
 
 <p>Your funnel produces a <strong>flat number of new bookings every month</strong>. This is the baseline &mdash; what happens with no new improvements, just running the current machine.</p>
 
@@ -149,7 +201,7 @@
 </div>
 
 <!-- ========== STEP 2 ========== -->
-<h2><span class="step-num">2</span> Incremental Lift: Accumulating Month Over Month</h2>
+<h2 id="step-2"><span class="step-num">2</span> Incremental Lift: Accumulating Month Over Month</h2>
 
 <p>Now imagine your team ships improvements &mdash; optimizations, new features, conversion lifts. Each month, these improvements deliver an average amount of <strong>incremental lift</strong> that <strong>permanently increases</strong> the monthly output going forward.</p>
 
@@ -174,7 +226,7 @@
 <p>Notice how <strong>each month is different</strong>. August produces $52,500 but July produces $80,000. The output <em>ramps up</em> as incremental lift accumulates.</p>
 
 <!-- ========== STEP 3 ========== -->
-<h2><span class="step-num">3</span> Three Numbers That Sound Similar but Aren't</h2>
+<h2 id="step-3"><span class="step-num">3</span> Three Numbers That Sound Similar but Aren't</h2>
 
 <p>This is where the confusion happens. There are <strong>three different &ldquo;monthly&rdquo; numbers</strong> people reference:</p>
 
@@ -197,7 +249,7 @@
 </div>
 
 <!-- ========== STEP 4 ========== -->
-<h2><span class="step-num">4</span> How The Annual Total Actually Adds Up</h2>
+<h2 id="step-4"><span class="step-num">4</span> How The Annual Total Actually Adds Up</h2>
 
 <p>The annual total is the <strong>sum of all 12 different months</strong>, not simply &ldquo;monthly times 12.&rdquo;</p>
 
@@ -237,7 +289,7 @@
 </div>
 
 <!-- ========== STEP 5 ========== -->
-<h2><span class="step-num">5</span> The Incremental Ramp Formula</h2>
+<h2 id="step-5"><span class="step-num">5</span> The Incremental Ramp Formula</h2>
 
 <p>There's a clean formula for the total incremental over a year with a linear ramp. If the average monthly lift is <code>W</code>:</p>
 
@@ -259,25 +311,63 @@
 </div>
 
 <!-- ========== STEP 6 ========== -->
-<h2><span class="step-num">6</span> Putting It All Together</h2>
+<h2 id="step-6"><span class="step-num">6</span> Putting It All Together: &ldquo;10% Lift&rdquo; on What?</h2>
 
-<p>Here's the full picture for this example, with a Low (5%) and High (15%) scenario:</p>
+<p>When someone says &ldquo;target a 10% lift,&rdquo; the first question is: <strong>10% of what?</strong> There are three common interpretations, and they produce wildly different outcomes. You must agree on which one you mean before the math makes sense.</p>
 
-<p>The <a class="text-link" href="../tools/nb-mrr-calculator.html">pacing calculator</a> mirrors this structure: funnel inputs, low/high % targets, and side-by-side baseline vs. scenario outputs.</p>
+<div class="callout key">
+  <strong>Three ways to interpret a &ldquo;10% lift&rdquo;:</strong><br><br>
+  &bull; <strong>A) Exit Growth:</strong> The month-12 run-rate is 10% above baseline. The lift ramps linearly and the in-year total falls out of that ramp.<br><br>
+  &bull; <strong>B) In-Year Annual:</strong> The annualized NB MRR total is 10% above baseline. This requires a larger monthly lift to compensate for the ramp.<br><br>
+  &bull; <strong>C) Compounding Monthly:</strong> Each month&rsquo;s output is 10% higher than the <em>previous month&rsquo;s</em>. The lift accelerates because the base it&rsquo;s applied to keeps growing.
+</div>
+
+<p>Using a $100K/month baseline ($1.2M annual), here are all three side by side:</p>
+
+<h3>Monthly breakdown</h3>
 
 <div class="card">
   <table>
-    <tr><th></th><th class="r">Baseline</th><th class="r">Low (5%)</th><th class="r">High (15%)</th></tr>
-    <tr><td>Monthly baseline</td><td class="r">$50,000</td><td class="r">$50,000</td><td class="r">$50,000</td></tr>
-    <tr><td>Avg monthly lift</td><td class="r">-</td><td class="r"><span class="lo">+$208</span></td><td class="r"><span class="hi">+$625</span></td></tr>
-    <tr><td>Exit rate (Jul)</td><td class="r">$50,000</td><td class="r"><span class="lo">$52,500</span></td><td class="r"><span class="hi">$57,500</span></td></tr>
-    <tr><td>Avg monthly</td><td class="r">$50,000</td><td class="r"><span class="lo">$51,354</span></td><td class="r"><span class="hi">$54,063</span></td></tr>
-    <tr class="total"><td>Annualized</td><td class="r">$600,000</td><td class="r"><span class="lo">$616,250</span></td><td class="r"><span class="hi">$648,750</span></td></tr>
-    <tr><td>Annual incremental</td><td class="r">-</td><td class="r"><span class="delta">+$16,250</span></td><td class="r"><span class="delta">+$48,750</span></td></tr>
+    <tr><th>Month</th><th class="r">Baseline</th><th class="r">A) Exit Growth</th><th class="r">B) In-Year Annual</th><th class="r">C) Compounding</th></tr>
+    <tr><td>Aug</td><td class="r">$100,000</td><td class="r">$100,833</td><td class="r">$101,538</td><td class="r">$110,000</td></tr>
+    <tr><td>Sep</td><td class="r">$100,000</td><td class="r">$101,667</td><td class="r">$103,077</td><td class="r">$121,000</td></tr>
+    <tr><td>Oct</td><td class="r">$100,000</td><td class="r">$102,500</td><td class="r">$104,615</td><td class="r">$133,100</td></tr>
+    <tr><td>Nov</td><td class="r">$100,000</td><td class="r">$103,333</td><td class="r">$106,154</td><td class="r">$146,410</td></tr>
+    <tr><td colspan="5" style="text-align:center;color:var(--muted);">... each month grows ...</td></tr>
+    <tr><td>Jun</td><td class="r">$100,000</td><td class="r">$109,167</td><td class="r">$116,923</td><td class="r">$285,312</td></tr>
+    <tr><td>Jul</td><td class="r">$100,000</td><td class="r">$110,000</td><td class="r">$118,462</td><td class="r">$313,843</td></tr>
   </table>
 </div>
 
-<p>Notice:</p>
+<h3>Summary comparison</h3>
+
+<div class="card">
+  <table>
+    <tr><th></th><th class="r">Baseline</th><th class="r">A) Exit Growth</th><th class="r">B) In-Year Annual</th><th class="r">C) Compounding</th></tr>
+    <tr><td>How it works</td><td class="r">&mdash;</td><td class="r">Fixed +$833/mo ramp</td><td class="r">Fixed +$1,538/mo ramp</td><td class="r">&times;1.10 each month</td></tr>
+    <tr><td>Exit rate (Jul)</td><td class="r">$100,000</td><td class="r"><span class="lo">$110,000</span></td><td class="r"><span class="lo">$118,462</span></td><td class="r"><span class="hi">$313,843</span></td></tr>
+    <tr><td>Avg monthly</td><td class="r">$100,000</td><td class="r"><span class="lo">$105,417</span></td><td class="r"><span class="lo">$110,000</span></td><td class="r"><span class="hi">$196,023</span></td></tr>
+    <tr class="total"><td>Annualized</td><td class="r">$1,200,000</td><td class="r"><span class="lo">$1,265,000</span></td><td class="r"><span class="lo">$1,320,000</span></td><td class="r"><span class="hi">$2,352,271</span></td></tr>
+    <tr><td>Annual incremental</td><td class="r">&mdash;</td><td class="r"><span class="delta">+$65,000</span></td><td class="r"><span class="delta">+$120,000</span></td><td class="r"><span class="delta">+$1,152,271</span></td></tr>
+    <tr><td>In-year annual growth</td><td class="r">&mdash;</td><td class="r">+5.4%</td><td class="r">+10.0%</td><td class="r">+96.0%</td></tr>
+    <tr><td>Exit growth</td><td class="r">&mdash;</td><td class="r">+10.0%</td><td class="r">+18.5%</td><td class="r">+213.8%</td></tr>
+  </table>
+</div>
+
+<p>The same &ldquo;10%&rdquo; target produces annual incremental NB MRR ranging from <strong>$65K to $1.15M</strong> depending on interpretation.</p>
+
+<h3>Which interpretation is right?</h3>
+
+<div class="callout key">
+  <strong>A) and B) are the two realistic planning models.</strong> They both use a <strong>linear ramp</strong> &mdash; each month, a fixed dollar increment of improvement lands and persists. The difference is just which outcome the 10% target anchors to (exit rate vs. annual total). The <a class="text-link" href="../tools/nb-mrr-calculator.html">calculator</a> supports both via its <strong>Exit Growth</strong> and <strong>In-Year Annual</strong> modes.<br><br>
+  <strong>C) is usually unrealistic</strong> for funnel optimization. Compounding assumes each month&rsquo;s 10% lift applies to the <em>already-lifted</em> run-rate, which implies your improvements multiply rather than add. In practice, funnel optimizations (conversion lifts, traffic gains, feature launches) add a fixed increment to the baseline &mdash; they don&rsquo;t make the <em>next</em> month&rsquo;s improvement 10% larger too. If someone says &ldquo;10% monthly growth,&rdquo; make sure they don&rsquo;t mean compounding &mdash; the numbers diverge fast.
+</div>
+
+<div class="callout baseline">
+  <strong>Always clarify:</strong> When someone says &ldquo;target a 10% lift,&rdquo; ask: <em>&ldquo;10% exit growth, 10% in-year annual growth, or 10% compounding monthly?&rdquo;</em> The answer changes the result by an order of magnitude.
+</div>
+
+<p>Regardless of interpretation, the same core truths hold:</p>
 <ul style="margin:0 0 16px 24px;">
   <li><strong>Avg monthly &times; 12 = Annualized</strong> &mdash; always checks out</li>
   <li><strong>Exit rate &times; 12 &ne; Annualized</strong> &mdash; exit rate is higher than average</li>
@@ -292,7 +382,7 @@
 </div>
 
 <!-- ========== STEP 7 ========== -->
-<h2><span class="step-num">7</span> The 54% Rule: Why Ramps Realize Less Than You Think</h2>
+<h2 id="step-7"><span class="step-num">7</span> The 54% Rule: Why Ramps Realize Less Than You Think</h2>
 
 <p>One of the most counterintuitive parts of the ramp model is how much incremental NB MRR you <strong>don't</strong> capture in-year. Even though you achieve the full lift by year-end, you only realize about <strong>54%</strong> of what you'd get if all improvement had been in place from day one.</p>
 
@@ -363,7 +453,7 @@
 </div>
 
 <!-- ========== STEP 8 ========== -->
-<h2><span class="step-num">8</span> Earlier Lift Is Worth More Than Later Lift</h2>
+<h2 id="step-8"><span class="step-num">8</span> Earlier Lift Is Worth More Than Later Lift</h2>
 
 <p>Not all lift is created equal. Improvement that lands in <strong>August</strong> contributes for 12 remaining months. Improvement that lands in <strong>July</strong> only contributes for 1 month. Same lift, dramatically different in-year impact.</p>
 
@@ -402,7 +492,7 @@
   <strong>Front-load your biggest improvements.</strong><br><br>
   &bull; A <strong>large improvement delivered early</strong> (e.g., a 5% conversion lift in August) produces far more in-year NB MRR than the same improvement delivered in March.<br><br>
   &bull; <strong>Delaying improvement by 3 months costs 25%</strong> of its in-year NB MRR. $2,500/month of lift delayed from Aug to Nov loses $7,500 in in-year NB MRR ($30K &rarr; $22.5K).<br><br>
-  &bull; <strong>Small, fast improvements beat large, slow ones</strong> for in-year NB MRR impact. Two $1,250/month lifts delivered in Aug and Sep together produce $29,375 in in-year NB MRR &mdash; more than a single $2,500/month lift delayed until Nov ($22,500).
+  &bull; <strong>Small, fast improvements beat large, slow ones</strong> for in-year NB MRR impact. Two $1,250/month lifts delivered in Aug and Sep together produce $28,750 in in-year NB MRR ($15,000 + $13,750) &mdash; more than a single $2,500/month lift delayed until Nov ($22,500).
 </div>
 
 <p>However, remember that all lift &mdash; early or late &mdash; carries the same NB MRR exit rate into the following year. A July improvement still adds $2,500/month to next year's baseline. The timing only affects <em>this year's</em> annualized NB MRR total.</p>
@@ -412,7 +502,7 @@
 </div>
 
 <!-- ========== STEP 9 ========== -->
-<h2><span class="step-num">9</span> From NB MRR to In-Year Recognized Revenue</h2>
+<h2 id="step-9"><span class="step-num">9</span> From NB MRR to In-Year Recognized Revenue</h2>
 
 <p>Everything above tracks <strong>NB MRR</strong> &mdash; the new recurring revenue added each month from newly acquired users. But there&rsquo;s a critical next question: <em>how much actual revenue do those new bookings generate within the fiscal year?</em> The <a class="text-link" href="../tools/nb-mrr-calculator.html">calculator&rsquo;s weekly cohort table</a> applies this logic to your inputs (each cohort&rsquo;s NB MRR &times; remaining weeks in the fiscal year).</p>
 
@@ -536,7 +626,7 @@
 </div>
 
 <!-- ========== GLOSSARY ========== -->
-<h2><span class="step-num">G</span> Glossary</h2>
+<h2 id="glossary"><span class="step-num">G</span> Glossary</h2>
 
 <dl class="glossary">
   <dt>NB MRR (New Booking Monthly Recurring Revenue)</dt>
@@ -593,7 +683,8 @@
 <!-- ========== LINK BACK ========== -->
 <a class="nav-link" href="../tools/nb-mrr-calculator.html">&larr; Back to calculator</a>
 
-</div>
+</div><!-- /.page -->
+</div><!-- /.layout -->
 
 <script>
 // Simple CSS bar charts
@@ -654,6 +745,28 @@ drawBars('bars-ramp', months.map((m, i) => ({ label: m, base: 50000, incr: (i + 
       <div class="bar-label">${m}</div>
     </div>`;
   }).join('');
+})();
+
+// TOC active-section tracking
+(function() {
+  const links = document.querySelectorAll('.toc a');
+  const sections = Array.from(document.querySelectorAll('h2[id]'));
+  if (!links.length || !sections.length) return;
+
+  function setActive(id) {
+    links.forEach(l => {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+    });
+  }
+
+  // Set first section active on load
+  setActive(sections[0].id);
+
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id); });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+
+  sections.forEach(s => obs.observe(s));
 })();
 
 // Step 7: Realized vs Day-One comparison
